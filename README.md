@@ -12,12 +12,25 @@ This project implements and compares two Single-Source Shortest Path (SSSP) algo
 ## Quick Start
 
 ```bash
-# Run the interactive demo
+# Run the interactive Streamlit web visualizer (recommended)
+uv run streamlit run app.py
+
+# Run the CLI demo
 uv run python -m src.demo
 
 # Run correctness tests
 uv run python tests/test_correctness.py
 ```
+
+---
+
+## Web Frontend Pages (`app.py`)
+
+- **1. Graph Builder** — Generate Sparse, Medium, Dense, Erdős–Rényi, or Grid graphs with live NetworkX previews.
+- **2. Algorithm Race** — Run Dijkstra and FastSSSP side-by-side, comparing shortest-path trees, runtime, memory, and distance accuracy.
+- **3. Step Animation** — Step through both algorithms node-by-node (Min-Heap extractions vs. Pivot selection, Bucket partitioning, and BMSSP FIFO relaxation).
+- **4. Benchmark Dashboard** — Configure and execute multi-run benchmarks with interactive Matplotlib plots.
+- **5. Theoretical Scaling** — Explore asymptotic operation counts ($n = 10^3$ to $10^{20}$) and adjust constant-factor overhead to see the crossover point.
 
 ---
 
@@ -27,13 +40,24 @@ uv run python tests/test_correctness.py
 project/
 ├── pyproject.toml              # uv project config
 ├── README.md                   # This file
+├── app.py                      # Streamlit frontend entry point
+├── .streamlit/config.toml        # Streamlit theme configuration
+├── pages/                      # Multi-page Streamlit UI
+│   ├── 1_Graph_Builder.py
+│   ├── 2_Algorithm_Race.py
+│   ├── 3_Step_Animation.py
+│   ├── 4_Benchmark.py
+│   └── 5_Theoretical.py
 ├── src/
 │   ├── __init__.py
 │   ├── graph.py                # Graph generation (5 families)
 │   ├── dijkstra.py             # Dijkstra's algorithm
+│   ├── dijkstra_stepper.py     # Step-by-step Dijkstra generator
 │   ├── fast_sssp.py            # FastSSSP algorithm
+│   ├── fast_sssp_stepper.py    # Step-by-step FastSSSP generator
 │   ├── benchmark.py            # Benchmarking framework
 │   ├── visualize.py            # Matplotlib charts + graph drawing
+│   ├── ui_helpers.py           # Shared Streamlit UI & plotting helpers
 │   └── demo.py                 # Interactive CLI demo
 ├── tests/
 │   └── test_correctness.py     # Correctness verification (28 tests)
