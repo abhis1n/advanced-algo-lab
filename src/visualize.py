@@ -305,6 +305,162 @@ def plot_shortest_path_tree(
 
 
 # ====================================================================== #
+#  6. Theoretical Scaling Analysis
+# ====================================================================== #
+
+def plot_theoretical_scaling(
+    output_dir: str = "plots",
+) -> List[str]:
+    """
+    Generate theoretical scaling plots that project operation counts
+    at graph sizes far beyond what fits in RAM, demonstrating the
+    asymptotic regime where FastSSSP outperforms Dijkstra.
+
+    Produces three plots:
+      - theoretical_ops_sparse.png  (m = 2n, sparse / road-network-like)
+      - theoretical_ops_medium.png  (m = 5n, moderate density)
+      - theoretical_ops_dense.png   (m = n^1.5, dense)
+    """
+    import numpy as np
+
+    _ensure_dir(f"{output_dir}/x")
+    paths: List[str] = []
+
+    # Range of n values: from 10^3 to 10^15
+    n_values = np.logspace(3, 15, num=500)
+    log2_n = np.log2(n_values)
+
+    density_configs = [
+        ("Sparse (m = 2n)",  lambda n: 2 * n,       "sparse"),
+        ("Medium (m = 5n)",  lambda n: 5 * n,       "medium"),
+        ("Dense (m = n^1.5)", lambda n: n ** 1.5,    "dense"),
+    ]
+
+    for density_label, m_fn, tag in density_configs:
+        m_values = np.array([m_fn(n) for n in n_values])
+
+        # Operation counts (proportional to asymptotic bound)
+        dijkstra_binary = (m_values + n_values) * log2_n        # O((m+n) log n)
+        dijkstra_fibo   = m_values + n_values * log2_n          # O(m + n log n)
+        fast_sssp_ops   = m_values * (log2_n ** (2.0 / 3.0))   # O(m log^{2/3} n)
+
+        # ----- Plot 1: Absolute operation counts -----
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+
+        ax1.loglog(n_values, dijkstra_binary, "-",
+                   color="#1565C0", linewidth=2, label="Dijkstra (binary heap)")
+        ax1.loglog(n_values, dijkstra_fibo, "--",
+                   color=DIJKSTRA_COLOR, linewidth=2, label="Dijkstra (Fibonacci heap)")
+        ax1.loglog(n_values, fast_sssp_ops, "-",
+                   color=FASTSSP_COLOR, linewidth=2.5, label="FastSSSP")
+
+        ax1.set_xlabel("Number of Vertices (n)", fontsize=12)
+        ax1.set_ylabel("Theoretical Operation Count", fontsize=12)
+        ax1.set_title(f"Theoretical Scaling: {density_label}", fontsize=13, fontweight="bold")
+        ax1.legend(fontsize=10)
+        ax1.grid(True, which="both", alpha=0.3)
+
+        # Mark crossover region
+        ratio = dijkstra_fibo / fast_sssp_ops
+        crossover_indices = np.where(ratio > 1.0)[0]
+        if len(crossover_indices) > 0:
+            cross_n = n_values[crossover_indices[0]]
+            ax1.axvline(x=cross_n, color=CORRECT_COLOR, linestyle=":", linewidth=1.5, alpha=0.7)
+            ax1.text(cross_n * 1.5, ax1.get_ylim()[0] * 10,
+                     f"Crossover\nn ~ {cross_n:.0e}", fontsize=9,
+                     color=CORRECT_COLOR, fontweight="bold")
+
+        # ----- Plot 2: Speedup ratio (Dijkstra / FastSSSP) -----
+        speedup_binary = dijkstra_binary / fast_sssp_ops
+        speedup_fibo = dijkstra_fibo / fast_sssp_ops
+
+        ax2.semilogx(n_values, speedup_binary, "-",
+                     color="#1565C0", linewidth=2, label="vs Dijkstra (binary heap)")
+        ax2.semilogx(n_values, speedup_fibo, "--",
+                     color=DIJKSTRA_COLOR, linewidth=2, label="vs Dijkstra (Fibonacci heap)")
+        ax2.axhline(y=1.0, color="black", linestyle="-", linewidth=0.8, alpha=0.5)
+        ax2.fill_between(n_values, 1.0, speedup_fibo,
+                         where=speedup_fibo > 1.0,
+                         alpha=0.15, color=FASTSSP_COLOR,
+                         label="FastSSSP advantage")
+
+        ax2.set_xlabel("Number of Vertices (n)", fontsize=12)
+        ax2.set_ylabel("Speedup Ratio (Dijkstra ops / FastSSSP ops)", fontsize=12)
+        ax2.set_title(f"Theoretical Speedup of FastSSSP: {density_label}",
+                      fontsize=13, fontweight="bold")
+        ax2.legend(fontsize=10, loc="upper left")
+        ax2.grid(True, which="both", alpha=0.3)
+        ax2.set_ylim(bottom=0)
+
+        fig.tight_layout()
+        out_path = f"{output_dir}/theoretical_ops_{tag}.png"
+        fig.savefig(out_path, dpi=150)
+        plt.close(fig)
+        print(f"  Saved: {out_path}")
+        paths.append(out_path)
+
+    # ----- Summary comparison table plot -----
+    fig, ax = plt.subplots(figsize=(14, 7))
+    ax.axis("off")
+    ax.set_title("Theoretical Operation Count Comparison (Sparse Graphs, m = 2n)",
+                 fontsize=14, fontweight="bold", pad=20)
+
+    col_labels = ["n (vertices)", "Dijkstra\n(binary heap)\n(m+n) log n",
+                  "Dijkstra\n(Fibonacci)\nm + n log n",
+                  "FastSSSP\nm log^(2/3) n",
+                  "Speedup\n(Fibo / FastSSSP)"]
+
+    table_n_values = [1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e12, 1e15]
+    table_data = []
+    for n in table_n_values:
+        m = 2 * n
+        lg = math.log2(n)
+        dij_bin = (m + n) * lg
+        dij_fib = m + n * lg
+        fast = m * (lg ** (2.0 / 3.0))
+        speedup = dij_fib / fast
+        table_data.append([
+            f"{n:.0e}",
+            f"{dij_bin:.2e}",
+            f"{dij_fib:.2e}",
+            f"{fast:.2e}",
+            f"{speedup:.2f}x",
+        ])
+
+    table = ax.table(cellText=table_data, colLabels=col_labels,
+                     loc="center", cellLoc="center")
+    table.auto_set_font_size(False)
+    table.set_fontsize(10)
+    table.scale(1.0, 1.6)
+
+    # Style header
+    for j in range(len(col_labels)):
+        cell = table[0, j]
+        cell.set_facecolor("#D9E2F3")
+        cell.set_text_props(fontweight="bold", fontsize=9)
+
+    # Highlight rows where FastSSSP wins
+    for i, row in enumerate(table_data):
+        speedup_val = float(row[-1].replace("x", ""))
+        if speedup_val > 1.5:
+            for j in range(len(col_labels)):
+                table[i + 1, j].set_facecolor("#E8F5E9")  # light green
+        # Highlight the speedup cell
+        if speedup_val > 2.0:
+            table[i + 1, len(col_labels) - 1].set_text_props(
+                fontweight="bold", color="#2E7D32")
+
+    fig.tight_layout()
+    out_path = f"{output_dir}/theoretical_comparison_table.png"
+    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  Saved: {out_path}")
+    paths.append(out_path)
+
+    return paths
+
+
+# ====================================================================== #
 #  Generate all plots from benchmark results
 # ====================================================================== #
 
@@ -319,4 +475,6 @@ def generate_all_plots(
     paths.append(plot_scalability(agg, f"{output_dir}/scalability.png"))
     paths.append(plot_memory_comparison(agg, f"{output_dir}/memory_comparison.png"))
     paths.append(plot_speedup(agg, f"{output_dir}/speedup.png"))
+    print("\nGenerating theoretical scaling analysis...")
+    paths.extend(plot_theoretical_scaling(output_dir))
     return paths

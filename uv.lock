@@ -450,12 +450,14 @@ source = { editable = "." }
 dependencies = [
     { name = "matplotlib" },
     { name = "networkx" },
+    { name = "numpy" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "matplotlib", specifier = ">=3.11.2" },
     { name = "networkx", specifier = ">=3.7" },
+    { name = "numpy", specifier = ">=2.5.4" },
 ]
 
 [[package]]
